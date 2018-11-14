@@ -1,0 +1,608 @@
+---
+title: "Nonparametric tests"
+author: "Giorgio Melloni (adapted from Maxwell Sherman)"
+date: "November 08, 2018"
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+library(shiny)
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Beyond CLT
+
+Let $X_i$ be observations from some probability distribution with mean $\mu$ and variance $\sigma^2$.
+
+Then we can estimate the true mean of $X$ ($E[X]$) using the sample mean $\bar{x}$.
+
+We've seen an example from two continuous distributions
+
+<br>
+<br>
+
+- gamma distribution (Lab 1)
+- exponential distribution (pset 1)
+
+## What about non-continuous distribution?
+
+Let's try with the **binomial distribution**.
+
+Let's say we have a bunch of $\bar{x}$: $\{\bar{x}_1,\bar{x}_2,...,\bar{x}_n\}$
+
+We know that:
+
+$$\bar{x_i} \sim N\left(\mu, \frac{\sigma^2}{n}\right) \rightarrow \sqrt{n}\frac{(\bar{x}_i-\mu)}{\sigma} \sim N(0, 1)$$
+
+So let's check that the normalized $\bar{x_i}$ follow a standard normal distribution.
+
+The parameters that determine the CLT approximation are:
+
+- $\mu = np$
+- $\sigma = \sqrt{np(1-p)}$
+
+Ultimately, the approximation depends on $n$ and $p$
+
+## What does this look like in R?
+
+Interactive simulation not present in this pdf version
+
+```{r , eval=FALSE}
+n.outer <- 1000  # number of simulations
+shiny::inputPanel(
+  selectInput("n", label = "Sample size:",
+              choices = c(5 , 10, 20, 30, 50, 100), selected = 20),
+  
+  sliderInput("p", label = "Probability:",
+              min = 0.01, max = 0.99, value = 0.5, step = 0.05)
+  
+)
+
+shiny::renderPlot({
+  n <- as.numeric( input$n )
+  p <- as.numeric( input$p )
+  mu  <- n * p
+  var <- n * p * (1-p)
+  sig <- sqrt(var)
+  vals <- replicate(n.outer , rbinom(n, n, p))# simulate from the binomial
+  xbar <- apply(vals , 2 , mean)
+  xbar.normed <- sapply(xbar, function(x) sqrt(n)*(x - mu) / sig) # normalized
+  varbar <- apply(vals , 2 , var)
+  par(mfrow=c(1, 3))
+  plot(0:n, dbinom(0:n, n, p), type='b', main = "Probability Density Function")  # plot the probability density function
+  hist(xbar.normed, breaks=30, freq=FALSE) # plot the distribution of the means
+  dens1 <- density( xbar.normed)
+  lines(dens1 , col = "blue" , lwd = 2)
+  hist(varbar, breaks = 100 , freq=FALSE) # plot the distribution of the sds
+  dens2 <- density( varbar )
+  lines(dens2 , col = "blue" , lwd = 2)
+})
+```
+
+## The Central Limit Theorem (formally)
+
+Let $X_1, X_2, ..., X_n$ be independent and identically distributed random variables with 
+
+<div class="centered">
+$$E[X_i] = \mu < \inf$$
+$$Var(X_i) = \sigma^2 < \inf$$
+</div>
+
+Define 
+
+$$\bar{X} = \frac{1}{n}\sum_{i=1}^n X_i$$
+
+Then 
+
+$$\lim_{n\to\infty} \sqrt{n} \frac{(\bar{X} - \mu)}{\sigma} \sim N(0, 1)$$
+
+Is there any distribution that doesn't comply to the CLT?
+
+## The Cauchy Distribution
+
+The standard Cauchy distribution has a probability density function: 
+
+$$f(x) = \frac{1} {\pi (1 + x^2)}$$
+Let $X \sim f(x)$. It can be shown
+
+- $E[X]$ is undefined (not so easy)
+- $Var(X)$ is not finite (easy)
+
+$$E[X^2] \propto \int_{-\infty}^{\infty} \frac{x^2}{1+x^2} dx = \int_{-\infty}^{\infty} 1 - \frac{1}{1+x^2} = \int_{-\infty}^{\infty} dx + \tan^{-1}(x)\Big|_{-\infty}^{\infty} = \infty$$
+
+## Behavior of Cauchy Distribution
+
+Interactive simulation not present in this pdf version
+
+```{r , eval=FALSE}
+removeOut <- function(v) v[ v < mean(v) + 2*sd(v) | v < mean(v) - 2*sd(v)]
+shiny::inputPanel(
+  selectInput("q", label = "Sample size:",
+              choices = c(5 , 10, 20, 30, 50, 100), selected = 20),
+  
+  sliderInput("k", label = "Bootstrap:",
+              min = 10, max = 5000, value = 1000, step = 100)
+  
+)
+
+shiny::renderPlot({
+  k <- as.numeric( input$k )
+  q <- as.numeric( input$q )
+  vals <- replicate(k , rcauchy(q))
+  xbar <- apply(vals, 2 , mean)  # simulate from the cauchy
+  varbar <- apply(vals, 2 , var)
+  #xbar.list <- removeOut(xbar.list)
+  par(mfrow=c(1, 3))
+  plot(xbar, dcauchy(xbar) , main = "Probability Density Function")  # plot the probability density function
+  hist(xbar, breaks = 100 , freq=FALSE) # plot the distribution of the means
+  dens1 <- density( xbar)
+  lines(dens1 , col = "blue" , lwd = 2)
+  hist(varbar, breaks = 100 , freq=FALSE) # plot the distribution of the sds
+  dens2 <- density( varbar)
+  lines(dens2 , col = "blue" , lwd = 2)
+})
+```
+
+## Beyond the Central Limit Theorem
+
+When we have a large sample size, the CLT tells us everything is normal...except the CLT can fail when:
+
+- observations are not identically distributed (**outliers**)
+- observations are not independent (**correlation**)
+- Variance is not (obviously) finite (**fat-tailed distribution**)
+
+<br>
+<br>
+
+What do we do if we have a small sample size and fear non-normality?
+
+What do we do if we have a large sample size but fear the *iid* assumption is not valid?
+
+<br>
+<br>
+<br>
+
+<div class="centered">
+**NONPARAMETRIC STATSTICS**
+</div>
+
+## What does "nonparametric" mean?
+
+Parametric statistics:
+
+- Assume the data come from a distribution
+- The distribution is defined by a finite number of parameters
+- We infer these parameters from the data itself
+- E.g. the t-test is a parametric model of mean ($\mu$) and variance ($S$)
+
+<br>
+<br>
+
+Nonparametric statistics:
+
+- No distribution assumptions
+- Models with no parameters
+- Models with an infinite number of parameters (yes, this is confusing)
+
+## Nonparametric testing in action
+
+The steps are largely the same as parametric testing:
+
+<br>
+<br>
+
+- Record a random selection of observations
+- Specify null and alternative hypotheses
+- Calculate a test statistic
+- Accept or reject the null based on how extreme your test statistics is
+
+## Wilcoxon Signed-Rank Test
+
+**Nonparametric version of the paired t-test**
+
+In theory: 
+
+If the groups have the same location, the difference between pairs should 
+randomly be positive or negative.
+
+In practice:
+
+- Calculate the difference between each pair, $D_i = X_i - Y_i$
+- Rank the pairs by absolute value of the differences from smallest to largest
+- If the difference is zero, discard the pair and reduce n by 1
+- Ties receive a rank equal to the average of the ranks they span
+- Sum the ranks with positive differences:
+
+$$ T^+ = \sum_i R_i \cdot \mathbb{1}(D_i>0)$$
+
+## Wilcoxon Signed-Rank Test Statistic
+
+$H_0: D = 0 \qquad H_a: D \neq 0$
+
+Under the null, the distribution of $T^+$ is complex, but it has finite mean and variance:
+
+$$ E[T^+] = \mu = \frac{n(n+1)}{4}$$ 
+$$Var(T^+) = \sigma^2 = \frac{n(n+1)(2n+1)}{24}$$ 
+
+So for n large(-ish) the Central Limit Theorem tells us: 
+
+$$ Z = \frac{T^+ - \mu}{\sigma} \sim N(0, 1)$$
+
+## An Example in R
+
+*We want to test if a certain gene is differentially expressed in tumor cells
+compared to normal tissue. We collect samples from the healthy tissue and the tumor.
+Is the expression level different?*
+
+```{r , echo = TRUE}
+n <- 10
+x <- c(13.51,8.69,2.14,2.43,1.99,7.35,2.69,13.44,20.5,3.56)
+y <- c(18.94,18.85,16.66,9.96,14.4,13.6,17.81,13.14,19.88,13.13)
+D <- y - x  # calculate the difference
+
+df <- data.frame(X = x, Y=y, D=D)  # make a dataframe
+df$rank <- rank(abs(D))  # add the rank of the absolute difference
+df
+```
+
+## An Example in R
+
+Let's calculate our test statistic and the conditions under the NULL
+
+```{r , echo = TRUE}
+T_stat <- sum(df$rank[df$D > 0])  # manually calculate the T+ statistic
+muT <- (n*(n+1))/4 # Expected mean under the null
+sigmaT <- sqrt( n * (n+1) * (2*n + 1) / 24) # Expected standard deviation under the null
+p <- 2*( 1 - pnorm( T_stat , muT , sigmaT) ) # pvalue
+```
+
+```{r}
+print(paste( "T stat:" , T_stat))
+print(paste( "p-value:" , p))
+```
+
+Or if you are lazy
+
+```{r , echo = TRUE}
+wilcox.test( y, x, paired = TRUE, exact = FALSE , correct = FALSE , alternative = "two.sided")
+```
+
+## The Wilcoxon Rank Sum Test
+
+**Nonparametric version of the unpaired t-test with equal variance**
+
+Intuitive motivation:
+
+*If the groups have the same location, then all observations should be approximately the same size. 
+Once ordered, the rank sums of each group should be approximately the same under the null hypothesis*
+
+```{r , fig.align="center"}
+set.seed(123)
+dens1 <- density( rnorm(10000 , mean = 10 , sd = 10))
+mp1 <- c(dens1$x[ which.min( abs(dens1$x - 10 )) ]
+    , dens1$y[ which.min( abs(dens1$x - 10 )) ])
+
+dens2 <- density( rnorm(10000 , mean = 3 , sd = 10))
+mp2 <- c(dens2$x[ which.min( abs(dens2$x - 3 )) ]
+    , dens2$y[ which.min( abs(dens2$x - 3 )) ])
+par(mfrow=c(1,2))
+plot(dens1 , lwd = 3 , col = "blue" 
+     , main = "t-test\nmeasure the difference of the\nmeans of two 'normally'\nshaped samples"
+     , ylim = c(0 , 0.05)
+     , xlab = "" , ylab = "" , bty = 'n' , axes=FALSE)
+lines(dens2 , lwd = 3 , col = "red")
+segments(x0 = mp1[1] , y0 = 0 , x1 = mp1[1] , y1 = mp1[2] , col = "blue" , lty = "dotdash")
+segments(x0 = mp2[1] , y0 = 0 , x1 = mp2[1] , y1 = mp2[2] , col = "red" , lty = "dotdash")
+
+samp1 <- rbeta(10000,5,1)
+samp2 <- samp1 + 0.5
+hist(samp1 , col = "red" , xlim = c(0 , 1.5) 
+     , bty = 'n' , axes=FALSE , xlab="" , ylab = ""
+     , main = "Wilcoxon Rank Sum\nmeasure a shift in the location\nof two iid distributions")
+hist(samp2 , col = "blue" , add=TRUE)
+```
+
+
+## Wilcoxon Rank Sum method
+
+Suppose there are $n_1$ observations in group 1 and $n_2$ observations in group 2
+
+* Order all group 1 and group 2 observations
+* Assign ranks
+* Sum the ranks belonging to group 1 and 2 observations:
+
+$$R_j = \sum_i^{n_1 + n_2} R_i \cdot \mathbb{1}(i \in \mathrm{j})$$
+
+* Calculate the Mann-Whitney U statistics (called W in R), which is the minimum of $U_1$ and $U_2$ : 
+
+$$U_1 = n_1 n_2 + \frac{n_1(n_1+1)}{2} - R_1$$
+$$U_2 = n_1 n_2 + \frac{n_2(n_2+1)}{2} - R_2$$
+
+## Wilcoxon Rank Sum statistic
+
+For small sample sizes, the distribution of $U$ can be calculated directly with elementary probability. 
+
+For large sample sizes, we use the Central Limit Theorem:
+
+$$ Z = \frac {U - \mu}{\sigma}$$ 
+where:
+
+$$\mu = \frac{n_1 n_2}{2}$$ 
+$$\sigma^2 = \frac {n_1 n_2 (n_1 + n_2 + 1)}{12}$$
+
+## An example in R 2
+
+Suppose we are testing the effect of a new medication to decrease blood pressure.
+
+- Group 1 is given the medication (5 subjects)
+- Group 2 is given placebo (4 subjects)
+
+|    Group 1|   Group 2|
+|----------:|---------:|
+|135        | 	    160|
+|155 	    |       145|
+|130 	    |       175|
+|125 	    |       140|
+|110        |          |
+
+<br>
+<br>
+
+**Is the treatment effective?**
+
+## An example in R 2
+
+```{r , echo =TRUE}
+g1 <- c(135, 155, 130, 125 , 110)
+g2 <- c(160, 145, 175, 140)
+n1 <- length(g1)
+n2 <- length(g2)
+label.1 <- rep(1, n1)
+label.2 <- rep(2, n2)
+
+grouped <- c(g1, g2)  # combine observations
+labels <- c(label.1, label.2)   # merge labels
+ranks <- rank(grouped) # determine rank
+
+R1 <- sum(ranks[labels == 1]) # Sum of ranks of g1
+R2 <- sum(ranks[labels == 2]) # Sum of ranks of g2
+U1 <- n1*n2 + n1*(n1+1)/2 - R1 
+U2 <- n1*n2 + n2*(n2+1)/2 - R2 # U stat
+U <- min( U1 , U2 )
+muU <- (n1*n2)/2
+sigmaU <- sqrt( n1*n2*(n1+n2+1)/12)
+half_p <- pnorm( U , muU , sigmaU)
+p <- if( min(U1,U2) == U1 ) 2*(1 - half_p) else 2*half_p # pvalue
+```
+
+```{r}
+print(c(paste0("U=",U) , paste0("p-value=",p)))
+```
+
+## An example in R 2
+
+Again, if you are lazy
+
+```{r , echo = TRUE}
+# Automatically determine U statistic and p-value using CLT
+# R calls the U statistics W. There is a lot of confusion regarding the formulation
+wilcox.test(g1, g2 , exact = FALSE , paired = FALSE 
+            , correct = FALSE , alternative="two.sided")
+```
+
+## What if we have more than two groups to test?
+
+- Parametric Statistics: ANOVA
+- Nonparametric Statistics: Kruskal-Wallis test
+
+<br>
+<br>
+<br>
+
+In summary:
+
+- Paired t-test $\rightarrow$ Wilcoxon signed-rank test
+- Unpaired t-test $\rightarrow$ Wilcoxon rank sum test (Mann-Whitney U Test)
+- ANOVA $\rightarrow$ Kruskal-Wallis test
+
+## Advantages of nonparametric tests
+
+Nonparametric methods work well under very general assumptions about the underlying probability distributions.
+
+* Nonparametric tests are **robust to non-normality**
+    - Less sensitive to measurement errors
+    - Less sensitive to outliers
+
+<br>
+
+* Nonparametric tests can **apply even when the CLT does not**
+    - Observations come from a variety of distributions
+
+<br>
+
+* Nonparametric tests can be used on **difficult-to-quantify data**
+    - e.g. Subjective evaluations (physician notes on a patient)
+
+## Disadvantages of nonparametric tests
+
+As a rule of thumb:
+
+<div class="centered">
+**Fewer assumptions = Less Power**
+</div>
+
+If the data really do come from normal distributions:
+
+|Parametric 	|Nonparametric|
+|----------:|---------:|
+|More sensitive 	|Less sensitive|
+|Confidence intervals easy 	|Confidence intervals hard|
+|Easy to interpret 	|Can be difficult to interpret|
+
+# Extra Examples
+
+## Using a nonparametric test under normality
+
+Nonparametric statistics are broadly applicable under very general assumptions. 
+The cost of this generality is power. 
+
+<br>
+
+**But how much power do we lose?**
+
+<br>
+
+This simulation allows you to explore the cost of performing a Wilcoxon Signed-Rank test 
+when the data truly are normally distributed.
+
+- We run 1000 random samples from 2 normal distributions with different means and sd.
+- What is the test that rejects more hypotheses, t-test or WSR ?
+
+## Demo 1: Power analysis under normality
+
+Interactive simulation not present in this pdf version
+
+```{r , eval=FALSE}
+removeOut <- function(v) v[ v < mean(v) + 2*sd(v) | v < mean(v) - 2*sd(v)]
+shiny::inputPanel(
+  sliderInput("mu1", label = "Mean of sample 1",
+              min = 0, max = 20, value = 5, step = 1),
+  sliderInput("mu2", label = "Mean of sample 2",
+              min = 0, max = 20, value = 10, step = 1),
+  
+  sliderInput("mysd", label = "SD of the two distributions",
+              min = 1, max = 20, value = 1, step = 1),
+  
+  selectInput("s", label = "Sample size:",
+              choices = c(5, 10, 20, 30, 50, 100), selected = 20)
+  
+)
+
+shiny::renderPlot({
+  mu1 <- as.numeric(input$mu1)
+  mu2 <- as.numeric(input$mu2)
+  mysd <- as.numeric(input$mysd)
+  s <- as.numeric(input$s)
+  # Show the distribution
+  s1 <- rnorm(10000 , mean = mu1 , sd = mysd)
+  s2 <- rnorm(10000 , mean = mu2 , sd = mysd)
+  dens1 <- density( s1 )
+  dens2 <- density( s2 )
+  # Run the actual simulation
+  myP <- replicate( 1000 , {
+    a <- rnorm(s , mean = mu1 , sd = mysd)
+    b <- rnorm(s , mean = mu2 , sd = mysd)
+    pT <- t.test(a , b , paired = TRUE)$p.value
+    pW <- wilcox.test(a , b , paired = TRUE)$p.value
+    c(pT , pW)
+  })
+  myPower <- c( sum(myP[1 , ]<0.05)/1000 , sum(myP[2 , ]<0.05)/1000)
+  myPower <- c( myPower , myPower[1] - myPower[2])
+  names(myPower) <- c("Power of t-test" , "Power of WSR test" , "Power gain")
+  
+  layout( matrix(c(1,1,2,2,2) , nrow=1))
+  plot(dens1 , lwd = 4 , col = "blue" 
+     , main = "Distribution"
+     , ylim = c(0 , max( c(dens1$y , dens2$y)) )
+     , xlim=c(min( c(dens1$x , dens2$x)) , max( c(dens1$x , dens2$x)))
+     , xlab = "" , ylab = "" , bty = 'n' , axes=FALSE)
+  lines(dens2 , lwd = 4 , col = "red")
+  barplot(myPower 
+          , col = c("forestgreen" , "brown" , "purple")
+          , main = expression(paste("Fraction of rejected hypothesis at" ~ alpha 
+                                    , " 0.05"))
+          , ylim = c(0,1))
+  text(c(1,2,3) , myPower + 0.02 , labels = paste0(round(myPower , 3)*100,"%"))
+  
+  
+})
+```
+
+## Robustness of nonparametric statistics
+
+Commonly in biomedical data there are **outliers**, observations which arise from a 
+different distribution than other samples. 
+
+The presence of outliers can be an anomaly (a so called *black swan*), 
+an error, or a meaningful phenomenon.
+
+Important questions to consider when analyzing data are: 
+
+- do my data have outliers and what can I do about it?
+- how robust are my statistical methods to outliers?
+
+In this simulation, you can explore the performance of the Wilcoxon Rank-Sum (Mann-Whitney U) test when outliers exist. 
+
+Two sets of 30 observations are independently drawn from the same distribution 
+
+To one of these sets is added a number of observations drawn from a different distribution. 
+
+**Under which conditions should you use each technique?**
+
+## Demo 2: Outliers influence
+
+Interactive simulation not present in this pdf version
+
+```{r , eval=FALSE}
+shiny::inputPanel(
+  sliderInput("mum1", label = "Mean of the two samples",
+              min = 0, max = 20, value = 5, step = 1),
+  sliderInput("mum2", label = "Mean of the outlier distribution",
+              min = 0, max = 20, value = 10, step = 1),
+  sliderInput("mysds", label = "SD",
+              min = 1, max = 20, value = 1, step = 1),
+  
+  selectInput("ss", label = "Number of outliers",
+              choices = c(1, 3, 5, 10, 15 , 20), selected = 3)
+  
+)
+
+shiny::renderPlot({
+  mu1 <- as.numeric(input$mum1)
+  mu2 <- as.numeric(input$mum2)
+  mysd <- as.numeric(input$mysds)
+  s <- as.numeric(input$ss)
+  # Show the distribution
+  s1 <- rnorm(30 , mean = mu1 , sd = mysd)
+  s2 <- c( rnorm(30 , mean = mu1 , sd = mysd) 
+           , rnorm(s , mean = mu2 , sd = mysd))
+  dens1 <- density( s1 )
+  dens2 <- density( s2 )
+  # Run the actual simulation
+  myP <- replicate( 1000 , {
+    a <- rnorm(30 , mean = mu1 , sd = mysd)
+    b <- c( rnorm(30 , mean = mu1 , sd = mysd) 
+           , rnorm(s , mean = mu2 , sd = mysd))
+    pT <- t.test(a , b , paired = FALSE)$p.value
+    pW <- wilcox.test(a , b , paired = FALSE)$p.value
+    c(pT , pW)
+  })
+  myT1 <- c( sum(myP[1 , ]<0.05)/1000 , sum(myP[2 , ]<0.05)/1000)
+  myT1 <- c( myT1 , myT1[1] - myT1[2])
+  names(myT1) <- c("Type I error t-test" , "Type I error WRS test" , "Type I error excess")
+  
+  layout( matrix(c(1,1,2,2,2) , nrow=1))
+  plot(dens1 , lwd = 4 , col = "blue" 
+     , main = "Distribution"
+     , ylim = c(0 , max( c(dens1$y , dens2$y)) )
+     , xlim=c(min( c(dens1$x , dens2$x)) , max( c(dens1$x , dens2$x)))
+     , xlab = "" , ylab = "" , bty = 'n' , axes=FALSE)
+  lines(dens2 , lwd = 4 , col = "red")
+  legend("topright" , legend = c("Outliers" , "No Outliers") , fill = c("red" , "blue"))
+  barplot(myT1 
+          , col = c("forestgreen" , "brown" , "purple")
+          , main = expression(paste("Fraction of rejected hypothesis at" ~ alpha 
+                                    , " 0.05"))
+          , ylim = c(0,1))
+  text(c(1,2,3) , myT1 + 0.02 , labels = paste0(round(myT1 , 3)*100,"%"))
+  
+  
+})
+```
